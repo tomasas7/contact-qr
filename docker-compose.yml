@@ -1,0 +1,58 @@
+# Local development stack: `docker compose up --build` starts everything.
+#
+# No credentials are needed or committed: PostgreSQL is reachable only on this stack's
+# private network (no host port is published) and uses `trust` auth there. Production
+# uses password auth from an untracked .env file (see docker-compose.prod.yml).
+name: contact-qr
+
+x-app: &app
+  build:
+    context: .
+    args:
+      APP_VERSION: local
+  image: contact-qr:local
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    POSTGRES_HOST: db
+    POSTGRES_USER: ${POSTGRES_USER:-contactqr}
+    POSTGRES_DB: ${POSTGRES_DB:-contactqr}
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-contactqr}
+      POSTGRES_DB: ${POSTGRES_DB:-contactqr}
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # One-shot: applies database migrations, then exits. The app starts only if it succeeds.
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    <<: *app
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

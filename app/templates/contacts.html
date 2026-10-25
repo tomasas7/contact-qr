@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}History{% endblock %}
+{% block content %}
+<div class="page-head row">
+  <div>
+    <h1>Contact history</h1>
+    <p class="muted">{{ total }} contact{{ "" if total == 1 else "s" }}{% if q %} matching “{{ q }}”{% endif %}</p>
+  </div>
+  <a class="btn primary" href="/">New contact</a>
+</div>
+
+<form class="card toolbar" method="get" action="/contacts" role="search">
+  <label class="sr-only" for="q">Search contacts</label>
+  <input id="q" name="q" type="search" value="{{ q }}" maxlength="100"
+         placeholder="Search by name, email, phone, organization or city">
+  <button class="btn" type="submit">Search</button>
+  {% if q %}<a class="btn ghost" href="/contacts">Clear</a>{% endif %}
+</form>
+
+{% if contacts %}
+<ul class="contact-list">
+  {% for c in contacts %}
+  <li class="card contact-row">
+    <a class="thumb" href="/contacts/{{ c.id }}">
+      <img src="/contacts/{{ c.id }}/qr.png" alt="" width="72" height="72" loading="lazy">
+    </a>
+    <div class="grow">
+      <a class="name" href="/contacts/{{ c.id }}">{{ c.first_name }} {{ c.last_name }}</a>
+      <div class="muted small">
+        {{ c.email or "" }}{% if c.email and c.phone %} · {% endif %}{{ c.phone or "" }}
+        {% if c.organization %} · {{ c.organization }}{% endif %}
+      </div>
+      <div class="muted small">Created {{ c.created_at|dt }}</div>
+    </div>
+    <div class="actions">
+      <a class="btn" href="/contacts/{{ c.id }}">View</a>
+      <a class="btn" href="/contacts/{{ c.id }}/qr.png?download=1" download>Download QR</a>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% include "_pagination.html" %}
+{% else %}
+<div class="card empty">
+  {% if q %}No contacts match “{{ q }}”.{% else %}No contacts yet. <a href="/">Create the first one</a>.{% endif %}
+</div>
+{% endif %}
+{% endblock %}

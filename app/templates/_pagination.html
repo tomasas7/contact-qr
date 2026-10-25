@@ -1,0 +1,8 @@
+{% if pages > 1 %}
+{% set base = request.url.path ~ "?" ~ (("q=" ~ q|urlencode ~ "&") if q else "") ~ ((filter_query ~ "&") if filter_query else "") %}
+<nav class="pagination" aria-label="Pagination">
+  {% if page > 1 %}<a class="btn" href="{{ base }}page={{ page - 1 }}">← Previous</a>{% endif %}
+  <span class="muted">Page {{ page }} of {{ pages }}</span>
+  {% if page < pages %}<a class="btn" href="{{ base }}page={{ page + 1 }}">Next →</a>{% endif %}
+</nav>
+{% endif %}

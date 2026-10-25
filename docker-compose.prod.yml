@@ -1,0 +1,76 @@
+# Production stack on the VPS, driven by deploy/deploy.sh (never edited by hand there:
+# CI uploads this file on every deploy). Secrets come from /opt/contact-qr/.env.
+#
+#   IMAGE_TAG=sha-abc1234 docker compose -f docker-compose.prod.yml up -d
+#
+# Data safety: the database volume is `external`, so Compose never creates or deletes it;
+# not even `docker compose down -v` can remove the data. It is created once by
+# deploy/bootstrap-server.sh.
+name: contact-qr
+
+x-app: &app
+  image: ghcr.io/tomasas7/contact-qr:${IMAGE_TAG:?IMAGE_TAG must be set}
+  env_file: .env
+  environment:
+    APP_ENV: production
+    POSTGRES_HOST: db
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Run explicitly by deploy.sh (after a backup, before the app is replaced).
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    <<: *app
+    restart: unless-stopped
+    # Bound to localhost only: the host's nginx terminates TLS and proxies to it.
+    ports:
+      - "127.0.0.1:8100:8000"
+    environment:
+      APP_ENV: production
+      POSTGRES_HOST: db
+      # Requests reach the container from the bridge gateway (host nginx); trust its
+      # X-Forwarded-For header and nobody else's.
+      FORWARDED_ALLOW_IPS: 172.30.50.1
+    depends_on:
+      db:
+        condition: service_healthy
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.50.0/24
+          gateway: 172.30.50.1
+
+volumes:
+  pgdata:
+    external: true
+    name: contact-qr_pgdata

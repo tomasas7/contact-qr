@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="card empty">
+  <p class="error-code">{{ status_code }}</p>
+  <h1>{{ title }}</h1>
+  <p class="muted">{{ message }}</p>
+  <p><a class="btn" href="/contacts">Back to history</a></p>
+</div>
+{% endblock %}

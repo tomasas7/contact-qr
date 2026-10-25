@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{{ contact.first_name }} {{ contact.last_name }}{% endblock %}
+{% block content %}
+<div class="page-head row">
+  <div>
+    <h1>{{ contact.first_name }} {{ contact.last_name }}</h1>
+    <p class="muted">Created {{ contact.created_at|dt }}{% if contact.updated_at != contact.created_at %} · updated {{ contact.updated_at|dt }}{% endif %}</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/contacts/{{ contact.id }}/edit">Edit</a>
+    <form method="post" action="/contacts/{{ contact.id }}/delete"
+          data-confirm="Delete this contact and its QR code? This cannot be undone.">
+      <button type="submit" class="btn danger">Delete</button>
+    </form>
+  </div>
+</div>
+
+<div class="detail">
+  <section class="card qr-card">
+    <img src="/contacts/{{ contact.id }}/qr.png" alt="QR code for {{ contact.first_name }} {{ contact.last_name }}" width="296" height="296">
+    <p class="muted small">Scan with a phone camera to save the contact.</p>
+    <div class="actions center">
+      <a class="btn primary" href="/contacts/{{ contact.id }}/qr.png?download=1" download>Download QR (PNG)</a>
+      <a class="btn" href="/contacts/{{ contact.id }}/contact.vcf" download>Download .vcf</a>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Details</h2>
+    <dl class="kv">
+      {% for label, value in [
+          ("First name", contact.first_name), ("Last name", contact.last_name),
+          ("Email", contact.email), ("Phone", contact.phone),
+          ("Birthday", contact.birthday.isoformat() if contact.birthday else None),
+          ("Street", contact.street), ("City", contact.city),
+          ("Postal code", contact.postal_code), ("Country", contact.country),
+          ("Organization", contact.organization), ("Job title", contact.job_title),
+          ("Website", contact.website), ("Note", contact.note)] %}
+        {% if value %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endif %}
+      {% endfor %}
+    </dl>
+    <details>
+      <summary>Encoded vCard payload</summary>
+      <pre class="code">{{ contact.vcard }}</pre>
+    </details>
+    <p class="muted small">API: <code>GET /api/v1/contacts/{{ contact.id }}</code></p>
+  </section>
+</div>
+{% endblock %}

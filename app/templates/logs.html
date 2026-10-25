@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Request logs{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Request logs</h1>
+  <p class="muted">Every HTTP request to the app, newest first · {{ total }} matching. Also available via <code>GET /api/v1/logs</code>.</p>
+</div>
+
+<form class="card filters" method="get" action="/logs">
+  <div class="field">
+    <label for="source">Source</label>
+    <select id="source" name="source">
+      <option value="">Any</option>
+      {% for s in ["UI", "API", "SYSTEM"] %}<option {% if form.source == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="method">Method</label>
+    <select id="method" name="method">
+      <option value="">Any</option>
+      {% for m in ["GET", "POST", "PUT", "DELETE", "HEAD"] %}<option {% if form.method == m %}selected{% endif %}>{{ m }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="status_code">Status</label>
+    <input id="status_code" name="status_code" inputmode="numeric" value="{{ form.status_code }}" placeholder="e.g. 404">
+  </div>
+  <div class="field">
+    <label for="path">Path contains</label>
+    <input id="path" name="path" value="{{ form.path }}" placeholder="/api/v1/contacts">
+  </div>
+  <div class="field">
+    <label for="client_ip">Client IP</label>
+    <input id="client_ip" name="client_ip" value="{{ form.client_ip }}">
+  </div>
+  <div class="field">
+    <label for="since">From (UTC)</label>
+    <input id="since" name="since" type="datetime-local" value="{{ form.since }}">
+  </div>
+  <div class="field">
+    <label for="until">To (UTC)</label>
+    <input id="until" name="until" type="datetime-local" value="{{ form.until }}">
+  </div>
+  <div class="actions end">
+    <button class="btn primary" type="submit">Filter</button>
+    <a class="btn ghost" href="/logs">Reset</a>
+  </div>
+</form>
+
+<div class="card table-wrap">
+  <table class="logs">
+    <thead>
+      <tr><th>Time (UTC)</th><th>Source</th><th>Method</th><th>Path</th><th>Status</th><th>Duration</th><th>Client IP</th><th>User agent</th></tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td class="nowrap">{{ log.timestamp.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+        <td><span class="badge src-{{ log.source|lower }}">{{ log.source }}</span></td>
+        <td>{{ log.method }}</td>
+        <td class="path" title="{{ log.path }}{% if log.query_string %}?{{ log.query_string }}{% endif %}">{{ log.path }}{% if log.query_string %}<span class="muted">?{{ log.query_string }}</span>{% endif %}</td>
+        <td><span class="status s{{ log.status_code // 100 }}xx">{{ log.status_code }}</span></td>
+        <td class="nowrap num">{{ "%.1f"|format(log.duration_ms) }} ms</td>
+        <td class="nowrap">{{ log.client_ip or "" }}</td>
+        <td class="ua" title="{{ log.user_agent or '' }}">{{ log.user_agent or "" }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="empty">No requests match these filters.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% include "_pagination.html" %}
+{% endblock %}

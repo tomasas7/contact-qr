@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit contact" if mode == "edit" else "New contact" }}{% endblock %}
+
+{% macro field(name, label, type="text", required=False, hint=None, autocomplete=None, attrs="") %}
+  {% set err = errors.get(name) %}
+  <div class="field{% if err %} has-error{% endif %}">
+    <label for="{{ name }}">{{ label }}{% if required %} <span class="req" aria-hidden="true">*</span>{% endif %}</label>
+    <input id="{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ values.get(name) or '' }}"
+           {% if max_lengths.get(name) %}maxlength="{{ max_lengths[name] }}"{% endif %}
+           {% if autocomplete %}autocomplete="{{ autocomplete }}"{% endif %}
+           {% if required %}aria-required="true"{% endif %}
+           {% if err %}aria-invalid="true" aria-describedby="{{ name }}-error"{% elif hint %}aria-describedby="{{ name }}-hint"{% endif %}
+           {{ attrs|safe }}>
+    {% if err %}<p class="error-text" id="{{ name }}-error">{{ err }}</p>
+    {% elif hint %}<p class="hint" id="{{ name }}-hint">{{ hint }}</p>{% endif %}
+  </div>
+{% endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <h1>{{ "Edit contact" if mode == "edit" else "Create a contact QR code" }}</h1>
+  <p class="muted">
+    {% if mode == "edit" %}Saving regenerates the QR code.
+    {% else %}Fill in the details and get a QR code that phones can scan to save the contact.{% endif %}
+  </p>
+</div>
+
+{% if errors or form_errors %}
+<div class="alert" role="alert">
+  <strong>Please fix the highlighted fields.</strong>
+  {% for msg in form_errors %}<p>{{ msg }}</p>{% endfor %}
+</div>
+{% endif %}
+
+<form method="post" class="card form"
+      action="{{ '/contacts/' ~ contact.id ~ '/edit' if mode == 'edit' else '/contacts' }}" novalidate>
+  <fieldset>
+    <legend>Name</legend>
+    <div class="grid-2">
+      {{ field("first_name", "First name", required=True, autocomplete="given-name") }}
+      {{ field("last_name", "Last name", required=True, autocomplete="family-name") }}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>How to reach them <span class="muted small">— email or phone required</span></legend>
+    <div class="grid-2">
+      {{ field("email", "Email", type="email", autocomplete="email", hint="e.g. jonas@example.com") }}
+      {{ field("phone", "Phone", type="tel", autocomplete="tel", hint="e.g. +370 612 34567 or 8 612 34567") }}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Personal</legend>
+    <div class="grid-2">
+      {{ field("birthday", "Birthday", type="date", autocomplete="bday", attrs='min="1900-01-01" max="' ~ today ~ '"') }}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Address</legend>
+    {{ field("street", "Street", autocomplete="street-address") }}
+    <div class="grid-3">
+      {{ field("city", "City", autocomplete="address-level2") }}
+      {{ field("postal_code", "Postal code", autocomplete="postal-code") }}
+      {{ field("country", "Country", autocomplete="country-name") }}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Work &amp; web</legend>
+    <div class="grid-2">
+      {{ field("organization", "Organization", autocomplete="organization") }}
+      {{ field("job_title", "Job title", autocomplete="organization-title") }}
+    </div>
+    {{ field("website", "Website", type="url", autocomplete="url", hint="Full address, e.g. https://example.com") }}
+  </fieldset>
+
+  <fieldset>
+    <legend>Note</legend>
+    {% set err = errors.get("note") %}
+    <div class="field{% if err %} has-error{% endif %}">
+      <label for="note">Note</label>
+      <textarea id="note" name="note" rows="3" maxlength="{{ max_lengths['note'] }}"
+                {% if err %}aria-invalid="true" aria-describedby="note-error"{% endif %}>{{ values.get("note") or "" }}</textarea>
+      {% if err %}<p class="error-text" id="note-error">{{ err }}</p>{% endif %}
+    </div>
+  </fieldset>
+
+  <div class="actions">
+    <button type="submit" class="btn primary">{{ "Save changes" if mode == "edit" else "Generate QR code" }}</button>
+    {% if mode == "edit" %}<a class="btn" href="/contacts/{{ contact.id }}">Cancel</a>{% endif %}
+  </div>
+</form>
+{% endblock %}
