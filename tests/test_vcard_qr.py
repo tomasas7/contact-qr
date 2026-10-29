@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 import pytest
 
-from app.qr import QRTooLargeError, render_qr_png
+from app.qr import QRTooLargeError, initials, render_qr_png
 from app.schemas import MAX_LENGTHS, ContactIn
 from app.vcard import VCardData, build_vcard, escape
 from tests.conftest import VALID_CONTACT
@@ -107,13 +107,26 @@ def test_special_characters_cannot_inject_properties():
 # --- QR code -----------------------------------------------------------------------------
 
 
+BADGE_BGR = (0xEA, 0x5B, 0x2F)  # BADGE_COLOR (#2f5bea) in OpenCV's channel order
+
+
+def has_badge(png: bytes) -> bool:
+    """True if the badge colour is just inside the centre badge's lower-left corner
+    (clear of the letters)."""
+    image = cv2.imdecode(np.frombuffer(png, dtype=np.uint8), cv2.IMREAD_COLOR)
+    height, width = image.shape[:2]
+    pixel = image[height // 2 + height // 12, width // 2 - width // 12]
+    return bool(np.abs(pixel.astype(int) - BADGE_BGR).max() <= 8)
+
+
 def test_qr_is_a_png():
     assert render_qr_png("hello").startswith(PNG_SIGNATURE)
+    assert render_qr_png("hello", label="AB").startswith(PNG_SIGNATURE)
 
 
 def test_qr_round_trip_preserves_contact():
     payload = vcard_for()
-    decoded = decode_qr(render_qr_png(payload))
+    decoded = decode_qr(render_qr_png(payload, label="JJ"))
     assert decoded == payload
     props = parse_vcard(decoded)
     assert props["FN"] == "Jonas Jonaitis"
@@ -122,9 +135,46 @@ def test_qr_round_trip_preserves_contact():
 
 def test_qr_round_trip_with_lithuanian_characters():
     payload = vcard_for(first_name="Šarūnas", last_name="Žemaitė", city="Šiauliai")
-    decoded = decode_qr(render_qr_png(payload))
+    decoded = decode_qr(render_qr_png(payload, label="ŠŽ"))
     assert "FN:Šarūnas Žemaitė" in decoded
     assert "Šiauliai" in decoded
+
+
+@pytest.mark.parametrize("note_length", [0, 50, 100, 150, 200])
+def test_badge_does_not_break_decoding_at_any_symbol_size(note_length):
+    """The badge hides the centre of the symbol; level H must recover it whether the
+    symbol is small or large (the note length drives the QR version)."""
+    payload = vcard_for(note=("Pastaba ąčę " * 20)[:note_length] or None)
+    png = render_qr_png(payload, label="JJ")
+    assert has_badge(png)
+    assert decode_qr(png) == payload
+
+
+def test_without_label_there_is_no_badge():
+    png = render_qr_png(vcard_for())
+    assert not has_badge(png)
+    assert decode_qr(png) == vcard_for()
+
+
+@pytest.mark.parametrize(
+    ("first", "last", "expected"),
+    [
+        ("Jonas", "Jonaitis", "JJ"),
+        ("šarūnas", "žemaitė", "ŠŽ"),
+        ("'Oscar", "-Neil", "ON"),  # skips leading punctuation
+        ("王", "Li", "L"),  # the badge font has no CJK glyphs, so that letter is skipped
+        ("王", "小明", ""),  # nothing drawable: no badge
+    ],
+)
+def test_initials(first, last, expected):
+    assert initials(first, last) == expected
+
+
+def test_contacts_get_an_initials_badge(client, valid_contact):
+    contact = client.post("/api/v1/contacts", json=valid_contact).json()
+    png = client.get(f"/api/v1/contacts/{contact['id']}/qr").content
+    assert has_badge(png)
+    assert "FN:Jonas Jonaitis" in decode_qr(png)
 
 
 def test_largest_possible_contact_still_fits_in_a_qr_code():
@@ -149,6 +199,10 @@ def test_largest_possible_contact_still_fits_in_a_qr_code():
         )
     )
     assert render_qr_png(payload).startswith(PNG_SIGNATURE)
+    # Too long for level H, so the badge is dropped rather than failing.
+    png = render_qr_png(payload, label="ĄĄ")
+    assert not has_badge(png)
+    assert decode_qr(png) == payload
 
 
 def test_payload_beyond_qr_capacity_raises_clear_error():

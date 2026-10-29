@@ -59,7 +59,7 @@ The key decisions are also recorded as ADRs in [`docs/adr/`](docs/adr/).
 **Request flow for "create contact"** (UI form or `POST /api/v1/contacts`):
 
 1. The input is validated by one Pydantic model, `ContactIn`, which both interfaces share.
-2. The service layer builds a vCard 3.0 payload, renders it as a PNG QR code with `segno`,
+2. The service layer builds a vCard 3.0 payload, renders it as a PNG QR code with `segno` (initials badge in the centre),
    and stores the contact, the vCard text and the PNG in one database transaction.
 3. The UI redirects to the contact page, which shows the QR code. The API returns `201`
    with a `Location` header.
@@ -77,7 +77,7 @@ The UI and the API are thin adapters over the same **service layer**
 | Web framework | FastAPI (generates the OpenAPI docs from the code) + Uvicorn |
 | UI | Server-rendered Jinja2 templates, plain CSS, no JS framework (≈5 lines of JS) |
 | Validation | Pydantic v2, `phonenumbers` (libphonenumber), `email-validator` |
-| QR / vCard | `segno` (QR), hand-written vCard 3.0 serializer (RFC 2426) |
+| QR / vCard | `segno` (QR), Pillow (initials badge in the centre), hand-written vCard 3.0 serializer (RFC 2426) |
 | Database | PostgreSQL 17, SQLAlchemy 2 ORM, Alembic migrations |
 | Packaging | `uv` with a lock file (`uv.lock`) for reproducible builds |
 | Containers | Multi-stage Dockerfile, Docker Compose (local and production files) |

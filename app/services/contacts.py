@@ -7,7 +7,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, undefer
 
 from app.models import Contact
-from app.qr import render_qr_png
+from app.qr import initials, render_qr_png
 from app.schemas import ContactIn
 from app.vcard import VCardData, build_vcard
 
@@ -20,7 +20,7 @@ def _apply(contact: Contact, data: ContactIn) -> None:
     for field, value in data.model_dump().items():
         setattr(contact, field, value)
     contact.vcard = build_vcard(VCardData(**data.model_dump()))
-    contact.qr_png = render_qr_png(contact.vcard)
+    contact.qr_png = render_qr_png(contact.vcard, label=initials(data.first_name, data.last_name))
 
 
 def create_contact(session: Session, data: ContactIn) -> Contact:

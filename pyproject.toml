@@ -17,6 +17,7 @@ dependencies = [
     "segno>=1.6",
     "phonenumbers>=8.13",
     "email-validator>=2.2",
+    "pillow>=11",
 ]
 
 [dependency-groups]

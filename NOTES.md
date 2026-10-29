@@ -53,10 +53,27 @@ adds bytes to the QR payload.
 ### QR images are generated once and stored
 The PNG is rendered at save time (create or update) and stored together with the exact
 vCard text. The brief asks for persisted images, and it also guarantees that what was
-issued is what gets served, even if the rendering library changes later. Error
-correction level **M** (about 15% damage tolerance) is the target. `segno` raises it
-when there's spare capacity and drops to L only if a very long contact otherwise
-wouldn't fit.
+issued is what gets served, even if the rendering library changes later.
+
+### Initials badge in the QR code (bonus task)
+Each code has the contact's initials (e.g. **ŠŽ**) in a blue badge in the centre:
+* The code is generated at error correction **H**, which recovers up to about 30% of
+  damaged symbol. The badge's white clear zone covers about 6% of the area (24% of the
+  width), aligned to whole modules, so there's a wide safety margin. Finder patterns at
+  the corners are never covered.
+* H costs capacity, so the symbol is denser. A typical contact goes from version ~6 to
+  ~10. If a contact is too long for H, the badge is dropped and the plain code is used:
+  level **M** (about 15%), raised by `segno` when capacity allows, falling back to L.
+  Every valid contact therefore still gets a code.
+* Initials are the first letter or digit of each name, upper-cased. Pillow's built-in
+  font has no Lithuanian letters, so **Inter Bold** (SIL Open Font License, licence
+  text next to the file in `app/assets/fonts/`) is bundled. Characters the font lacks
+  (e.g. CJK) are skipped; with none left, the code has no badge.
+* Tests decode badged codes of every size (small to the largest that fits at H) with
+  OpenCV, check the badge is actually there, and check the fallback.
+* Existing contacts get the badge through data migration `0002`, which re-renders their
+  stored PNGs from the stored vCard text. Its downgrade renders them without the badge.
+* Badge PNGs are saved as 16-colour palette images: 4–15 KB instead of 1–5 KB.
 
 ### Request logging
 * A **pure ASGI middleware** wraps the whole app, so it sees the final status of
@@ -94,7 +111,7 @@ a Compose deployment.
 | **Server-rendered Jinja2 UI** | One container, no build step, no CORS, no client state; the forms work without JavaScript; strict CSP is easy | React/Vite SPA: a second container and build pipeline for a 5-page app, and UI traffic would hit `/api` and blur the UI/API logging distinction |
 | **PostgreSQL** | Real concurrent database with transactions; one place for all state; its health is meaningfully checkable | SQLite on a volume: simpler, but weaker for concurrent writes and undersells the multi-service setup |
 | **SQLAlchemy 2 + Alembic** | Versioned, reviewable schema changes, which is central to safe redeploys | `create_all()` on startup (no migration history, risky changes) |
-| **segno** | Pure Python, no system libraries, standards-compliant, picks the smallest symbol automatically | `qrcode` (needs Pillow) |
+| **segno** (+ Pillow for the badge) | segno: pure Python, standards-compliant, picks the smallest symbol automatically. Pillow draws the initials badge on top | `qrcode` (its logo support is the same Pillow overlay) |
 | **uv + lock file** | Fast, fully reproducible dependency resolution in CI and Docker | pip + requirements.txt |
 | **Host nginx (not a proxy container)** | The VPS already runs nginx on 80/443 for other sites, so a second proxy couldn't bind those ports. Adding a virtual host is the least invasive option and reuses the existing certbot setup | Caddy container (the original plan; it would conflict with the existing nginx) |
 | **GitHub Actions + GHCR** | Built into the repo hosting; images are built **once** in CI and the server only pulls them (it never compiles code) | Building on the server (slow, needs source code there, not reproducible) |
@@ -147,6 +164,7 @@ the pre-deploy dump is the recovery path (the `pg_restore` command is in the REA
 | **Automated rollback** | ✅ | Version-aware health gate in `deploy.sh` |
 | **Data retention** | ✅ | Request logs older than `LOG_RETENTION_DAYS` (90) are deleted by a daily in-app job. Contacts are never auto-deleted, since they're user data |
 | **Additional monitoring** | ◑ partial | Health endpoint with DB check and version, Docker `HEALTHCHECK`, the request log itself (latency per request), structured stdout logs with rotation. No metrics stack (see §7) |
+| **Initials badge in the QR code** (bonus task) | ✅ | Error correction H plus a centre badge; falls back to a plain code when a contact is too long for H (see §1) |
 | **API authentication** | ❌ deliberately | See below |
 
 **Why no API authentication:** the brief requires the UI and the API to offer the same
@@ -162,7 +180,7 @@ item under "with more time".
 
 * **QR in the database vs files on a volume:** `bytea` keeps a single source of truth,
   one volume and one backup, and the contact and its image are written atomically, at
-  the cost of slightly larger DB rows. The images are 1–5 KB, and the column is loaded
+  the cost of slightly larger DB rows. The images are 4–15 KB, and the column is loaded
   lazily (`deferred`), so listing contacts never reads them.
   [ADR 0002](docs/adr/0002-store-qr-images-in-postgres.md)
 * **Stored QR vs generating it on each request:** storing costs a few KB per contact but

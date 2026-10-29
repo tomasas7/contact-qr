@@ -20,5 +20,5 @@ load it.
 ## Consequences
 * All state is in one database and one volume, backed up with one `pg_dump`.
 * The contact and its image are written in one transaction.
-* About 1–5 KB per contact in the DB, which is negligible here. At very large scale,
+* About 4–15 KB per contact in the DB (with the initials badge), which is negligible here. At very large scale,
   object storage would be the better choice.
